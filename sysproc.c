@@ -237,7 +237,7 @@ int sys_getsharedpage(void){
   if(argstr(0, &key) < 0 || argint(1, &npages) < 0)
    return -1;
   struct proc * cur_proc = myproc();
-  cprintf("Key : %s, pages : %d, pid: %d, proc size: %d\n", key, npages, cur_proc->pid, cur_proc->sz);
+  // cprintf("Key : %s, pages : %d, pid: %d, proc size: %d\n", key, npages, cur_proc->pid, cur_proc->sz);
   int va = (int)get_shared_pages(key, npages, cur_proc->pid, cur_proc->sz, cur_proc->pgdir);
   cur_proc->sz += (npages * PGSIZE);
   switchuvm(cur_proc);
@@ -250,7 +250,7 @@ int sys_freesharedpage(void){
    return -1;
 
   struct proc * cur_proc = myproc();
-  cprintf("Key : %s, pid: %d, proc size: %d\n", key, cur_proc->pid, cur_proc->sz);
+  // cprintf("Key : %s, pid: %d, proc size: %d\n", key, cur_proc->pid, cur_proc->sz);
   int npages = free_shared_pages(key, cur_proc->pid, cur_proc->pgdir);
   if(npages == -1){
     cprintf("No shared memory associated with this key : %s\n", key);
