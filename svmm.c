@@ -40,7 +40,7 @@ static int pagesmap(pde_t *pgdir, void *va, uint size, uint pa, int perm) {
 
   a = (char *)PGROUNDDOWN((uint)va);
   last = (char *)PGROUNDDOWN(((uint)va) + size - 1);
-  // cprintf("Mapping VA : %x -> PA : %x\n", a, pa);
+  // Mapping VA -> PA 
   for (;;) {
     if ((pte = pgdirwalk(pgdir, a, 1)) == 0)
       return -1;
@@ -63,19 +63,28 @@ int keycmp(const char *p, const char *q) {
 
 svm_t *add_shared_vm(char *key, uint npages, uint *pas) {
   svm_t *svm;
+
   int idx = 0;
+
   svm = (svm_t *)kalloc();
+
   if (!svm) {
     // memory allocation failure
     // Throw exception or return NULL
     return NULL;
   }
   svm->key = key;
+
   svm->npages = npages;
+
   svm->pas = pas;
+
   svm->references = 0;
+
   svm->prev = NULL;
+
   svm->next = NULL;
+
   for (; idx < NPROC; idx++) {
     svm->procs[idx].pid = NULL_PROC_ID;
     svm->procs[idx].va = NULL;
@@ -95,6 +104,7 @@ svm_t *add_shared_vm(char *key, uint npages, uint *pas) {
   }
 
   count++;
+
   return svm;
 }
 
@@ -102,12 +112,17 @@ svm_t *get_shared_vm(char *key) {
   if (head == NULL) {
     return NULL;
   }
+
   svm_t *cur = head;
+
   for (; cur != NULL; cur = cur->next) {
+
     if (keycmp(cur->key, key) == 0) {
       return cur;
     }
+
   }
+
   return NULL;
 }
 
@@ -117,8 +132,11 @@ int remove_shared_vm(char *key) {
   if (cur == NULL) {
     return 0;
   }
+
   svm_t *prev = cur->prev;
+
   svm_t *next = cur->next;
+
   if (head == cur) {
     head = cur->next;
     if (head != NULL) {
@@ -138,37 +156,53 @@ int remove_shared_vm(char *key) {
       next->prev = prev;
     }
   }
+
   kfree((char *)cur->pas);
+
   kfree((char *)cur);
+
   count--;
+
   return 1;
 }
 
 int add_proc(void *va, svm_t *svm, int pid) {
+
   if (svm == NULL) {
     return 0;
   }
 
   int idx = get_proc_idx(svm, NULL_PROC_ID);
+
   if (idx == -1) {
     return 0;
   }
+
   svm->references += 1;
+
   svm->procs[idx].pid = pid;
+
   svm->procs[idx].va = va;
+
   return 1;
 }
 
 int get_proc_idx(svm_t *svm, int pid) {
+
   if (svm == NULL) {
     return 0;
   }
+
   int idx;
+
   for (idx = 0; idx < NPROC; idx++) {
+
     if (svm->procs[idx].pid == pid) {
       return idx;
     }
+
   }
+
   return -1;
 }
 
@@ -176,49 +210,66 @@ int remove_proc(svm_t *svm, int pid) {
   if (svm == NULL) {
     return 0;
   }
+
   int idx = get_proc_idx(svm, pid);
+
   if (idx == -1) {
     return 0;
   }
 
   svm->references -= 1;
+
   svm->procs[idx].pid = NULL_PROC_ID;
+
   svm->procs[idx].va = NULL;
+
   return 1;
 }
 
 uint *alloc_physical_pages(uint npages) {
   int pg_idx;
+
   uint *pa_store = (uint *)kalloc();
+
   if (!pa_store) {
     cprintf("Unable to allocate memory to store physical addresses\n");
     return NULL;
   }
+
   uint *pa_str_ptr = pa_store;
+
   for (pg_idx = 0; pg_idx < npages; pg_idx++) {
+
     char *mem = kalloc();
+
     if (mem == 0) {
       cprintf("alloc_physical_pages out of memory\n");
       dealloc_physical_pages(pa_store, pg_idx);
       return NULL;
     }
+
     memset(mem, 0, PGSIZE);
+
     *pa_str_ptr = V2P(mem);
+
     pa_str_ptr++;
   }
+
   return pa_store;
 }
 
 void dealloc_physical_pages(uint *pas, uint npages) {
   int pg_idx;
+
   for (pg_idx = 0; pg_idx < npages; pg_idx++) {
     kfree(P2V(pas[pg_idx]));
   }
+
 }
 
 void *map_shared_pages_to_proc(uint *pas, pde_t *pgdir, uint sz, uint npages) {
   uint va = PGROUNDUP(sz);
-  
+
   uint va_idx = va;
   
   for (int pg_idx = 0; pg_idx < npages; pg_idx++) {
