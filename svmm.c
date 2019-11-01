@@ -218,30 +218,43 @@ void dealloc_physical_pages(uint *pas, uint npages) {
 
 void *map_shared_pages_to_proc(uint *pas, pde_t *pgdir, uint sz, uint npages) {
   uint va = PGROUNDUP(sz);
+  
   uint va_idx = va;
-  // uint newsz = sz + (PGSIZE * npages);
+  
   for (int pg_idx = 0; pg_idx < npages; pg_idx++) {
-    // cprintf("Setting up PTE with VA : %x and PA : %x\n", va_idx, pas[pg_idx]);
+    // Setting up PTE with VA
     if (pagesmap(pgdir, (char *)va_idx, PGSIZE, pas[pg_idx], PTE_W | PTE_U) <
         0) {
+
       cprintf("mappages out of memory (2)\n");
+
+      unmap_shared_pages_to_proc((void*)va, pgdir, pg_idx);
+
       dealloc_physical_pages(pas, npages);
+
       return 0;
     }
+
     va_idx += PGSIZE;
   }
+
   return (char *)va;
 }
 void unmap_shared_pages_to_proc(void *va, pde_t *pgdir, uint npages) {
   pte_t *pte;
+
   char *va_idx = (char *)va;
+
   for (int pg_idx = 0; pg_idx < npages; pg_idx++) {
-    // cprintf("Unmapping PTE with VA : %x\n", va_idx);
+    // Unmapping PTE with VA
     pte = pgdirwalk(pgdir, va_idx, 0);
+
     if (!pte) {
       panic("unmap");
     }
+
     *pte = 0;
+
     va_idx += PGSIZE;
   }
 }
@@ -250,58 +263,72 @@ void *get_shared_pages(char *key, uint npages, int pid, uint proc_sz,
                        pde_t *pgdir) {
   svm_t *svm;
   uint *pas;
+
+  if(proc_sz + (npages * PGSIZE) >= KERNBASE){
+    return NULL;
+  }
   svm = get_shared_vm(key);
+  
   if (svm != NULL) {
+
     int proc_idx = get_proc_idx(svm, pid);
+
     if (proc_idx != -1) {
       return svm->procs[proc_idx].va;
     }
+
     pas = svm->pas;
-    // cprintf("Using already allocated pages\n");
-    // for (int pg_idx = 0; pg_idx < npages; pg_idx++) {
-    //   cprintf("\t%x\n", pas[pg_idx]);
-    // }
+
   } else {
+
     pas = alloc_physical_pages(npages);
-    // cprintf("Allocated new pages\n");
-    // for (int pg_idx = 0; pg_idx < npages; pg_idx++) {
-    //   cprintf("\t%x\n", pas[pg_idx]);
-    // }
+
   }
   char *va = (char *)map_shared_pages_to_proc(pas, pgdir, proc_sz, npages);
+
   if (va == NULL) {
     // mapping failed, return null
     return NULL;
   }
+
   if (svm == NULL) {
     svm = add_shared_vm(key, npages, pas);
   }
+  
   add_proc(va, svm, pid);
 
-  // cprintf("References : %d\n", svm->references);
   return (void *)va;
 }
 
 int free_shared_pages(char *key, int pid, pde_t *pgdir) {
   svm_t *svm = get_shared_vm(key);
+
   if (svm == NULL) {
     // throw error saying its not allocated
     return -1;
   }
 
   int svm_proc_idx = get_proc_idx(svm, pid);
+
   if (svm_proc_idx == -1) {
     // throw error saying the shared memory was never allocated for this process
     return -2;
   }
 
   uint npages = svm->npages;
+
   char *va = svm->procs[svm_proc_idx].va;
+  
   remove_proc(svm, pid);
+
   if (svm->references == 0) {
+
     dealloc_physical_pages(svm->pas, npages);
+
     remove_shared_vm(key);
   }
+
   unmap_shared_pages_to_proc(va, pgdir, npages);
+
   return npages;
 }
